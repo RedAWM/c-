@@ -1,9 +1,18 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <iostream>
-#include <WinSock2.h>
 //scoket头文件放在windows头文件之前
-#include<Windows.h>
+#ifdef _WIN32
+	#include <WinSock2.h>
+	#include<Windows.h>
+#else
+	#include<unistd.h>//uni std
+	#include<arpa/iner.h>
+	#include<string.h>
+	#define SOCKET int
+	#define INVALID_SOCKET  (SOCKET)(~0)
+	#define SOCKET_ERROR            (-1)
+#endif // _WIN32
 #include<thread>
 
 //引入WIndows本地的静态库
@@ -91,7 +100,7 @@ int Processor(SOCKET _clientsock)
 	char szRecv[4096] = {};
 	//5、接收客户端数据
 	DataHeader* header = (DataHeader*)szRecv;
-	int n_Len = recv(_clientsock, (char*)&szRecv, sizeof(DataHeader), 0);
+	int n_Len = (int)recv(_clientsock, (char*)&szRecv,sizeof(DataHeader), 0);
 	if (n_Len <= 0)
 	{
 		cout << "与服务器断开连接，任务结束" << endl;
@@ -128,6 +137,8 @@ int Processor(SOCKET _clientsock)
 	}
 	break;
 	}
+
+	return 0;
 }
 
 
@@ -172,10 +183,15 @@ void CmdThread(SOCKET _socket)
 
 int main()
 {
+	cout << "开始" << endl;
+#ifdef _WIN32
 	//版本号,启动windows socket2.x环境
 	WORD ver = MAKEWORD(2, 2);
 	WSADATA dat;
 	WSAStartup(ver, &dat);
+#endif // _WIN32
+
+
 
 	//1\建立简易tcp客户端
 	SOCKET _socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -193,7 +209,12 @@ int main()
 	sockaddr_in _sin = {};
 	_sin.sin_family = AF_INET;
 	_sin.sin_port = htons(4567);
+#ifdef _WIN32
 	_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+
+#else
+	_sin.sin_addr.s_addr = inet_addr("192.168.0.161");
+#endif // _WIN32
 	int ret= connect(_socket, (sockaddr*)&_sin, sizeof(sockaddr_in));
 
 	if (SOCKET_ERROR == ret)
@@ -219,8 +240,8 @@ int main()
 		fd_set fdReads;
 		FD_ZERO(&fdReads);
 		FD_SET(_socket, &fdReads,NULL);
-		timeval t = { 2,0 };
-		int redt= select(_socket, &fdReads, 0, 0, &t);
+		timeval t = { 0,0 };
+		int redt= select(_socket+1, &fdReads, 0, 0, &t);
 		if (redt < 0)
 		{
 			cout << "select任务结束" << endl;
@@ -243,14 +264,21 @@ int main()
 	}
 
 
-
-
 	//4、关闭socket连接
+#ifdef _WIN32
+
 	closesocket(_socket);
+#else
+	close(_socket);
+#endif // _WIN32
 
 
+#ifdef _WIN32
 	//5、清除windowssocket环境
 	WSACleanup();
+#endif // _WIN32
+
+
 
 
 

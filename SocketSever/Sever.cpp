@@ -1,9 +1,22 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <iostream>
+#ifdef _WIN32
+
 #include <WinSock2.h>
-#include<vector>
 //scoket头文件放在windows头文件之前
 #include<Windows.h>
+
+#else
+#include<unistd.h>//uni std
+#include<arpa/iner.h>
+#include<string.h>
+#define SOCKET int
+#define INVALID_SOCKET  (SOCKET)(~0)
+#define SOCKET_ERROR            (-1)
+#endif // _WIN32
+
+
+#include<vector>
 //引入WIndows本地的静态库
 #pragma comment(lib,"ws2_32.lib")
 using namespace std;
@@ -138,14 +151,21 @@ int Processor(SOCKET _clientsock)
 	}
 	break;
 	}
+	return 0;
 }
 
 int main()
 {
+
+	cout << "开始" << endl;
+#ifdef _WIN32
 	//版本号
 	WORD ver = MAKEWORD(2, 2);
 	WSADATA dat;
 	WSAStartup(ver, &dat);
+#endif // _WIN32
+
+
 
 	//1、建立一个套接字
 	//网络类型、数据形式：数据流类型、协议类型:TCP协议
@@ -204,10 +224,18 @@ int main()
 		FD_SET(_sock, &fdRead);//将描述符加入集合
 		FD_SET(_sock, &fdWrite);
 		FD_SET(_sock, &fdExp);
+
+		///计算出最大描述符的长度
+		SOCKET maxSock = _sock;
+
 		for (int i = (int)g_clients.size() - 1; i >= 0; i--)
 		{
 			//接收是否有可读，有的话就放到可读集合里边
 			FD_SET(g_clients[i], &fdRead);
+			if (maxSock <g_clients[i])
+			{
+				maxSock = g_clients[i];
+			}
 		}
 
 		//加入时间timeval，非阻塞
@@ -228,7 +256,13 @@ int main()
 			int nAddrLen = sizeof(clientAddr);
 			SOCKET _clientsock = INVALID_SOCKET;//无效的Scoket地址
 			char msgBuf[] = "HELLOM, IM";
+#ifdef _WIN32
 			_clientsock = accept(_sock, (sockaddr*)&clientAddr, &nAddrLen);
+#else
+			_clientsock = accept(_sock, (sockaddr*)&clientAddr, (socklen_t*)&nAddrLen);
+
+#endif // _WIN32
+
 			if (INVALID_SOCKET == _clientsock)
 			{
 				cout << "无效客户端SOCKET" << endl;
@@ -249,24 +283,40 @@ int main()
 			}
 		}
 		//从可读集合中进行查找
-		for (size_t i = 0; i < fdRead.fd_count; i++)
+		for (int i = (int)g_clients.size()-1; i >=0; i--)
 		{
-			//如果等于-1，则客户端退出
-			if (-1 == Processor(fdRead.fd_array[i]))
+			if (FD_ISSET(g_clients[i], &fdRead))
 			{
-				auto iter = find(g_clients.begin(), g_clients.end(), fdRead.fd_array[i]);
-				if (iter != g_clients.end())
+				if (-1 == Processor(fdRead.fd_array[i]))
 				{
-					//移除
-					g_clients.erase(iter);
+					auto iter = g_clients.begin()+i;
+					if (iter!=g_clients.end())
+					{
+						g_clients.erase(iter);
+					}
 				}
+
 			}
 		}
+
+		//for (size_t i = 0; i < fdRead.fd_count; i++)
+		//{
+		//	//如果等于-1，则客户端退出
+		//	if (-1 == Processor(fdRead.fd_array[i]))
+		//	{
+		//		auto iter = find(g_clients.begin(), g_clients.end(), fdRead.fd_array[i]);
+		//		if (iter != g_clients.end())
+		//		{
+		//			//移除
+		//			g_clients.erase(iter);
+		//		}
+		//	}
+		//}
 		//TODO:判断客户端接收长度是否,拆包处理
 
 
 		//cout << "空闲时间处理其他事情" << endl;
-
+		
 	}
 
 
