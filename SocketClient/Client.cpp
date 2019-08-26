@@ -211,7 +211,8 @@ int main()
 
 	///启动线城
 	thread t1(CmdThread,_socket);
-
+	//将线程与主线城分离
+	t1.detach();
 
 	while (g_bRun)
 	{
