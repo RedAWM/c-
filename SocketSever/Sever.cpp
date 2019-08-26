@@ -239,7 +239,7 @@ int main()
 		}
 
 		//加入时间timeval，非阻塞
-		timeval t = { 1,0 };
+		timeval t = { 0,0 };
 		int rret = select(_sock + 1, &fdRead, &fdWrite, &fdExp, &t);
 		if (rret < 0)
 		{
