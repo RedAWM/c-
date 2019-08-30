@@ -1,123 +1,103 @@
-#ifndef _EASYTCPCLIENT_HPP_
-#define _EASYTCPCLIENT_HPP_
-#define _CRT_SECURE_NO_WARNINGS
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include <iostream>
-//scoket头文件放在windows头文件之前
+#ifndef _EasyTcpClient_hpp_
+#define _EasyTcpClient_hpp_
+
 #ifdef _WIN32
-#include <WinSock2.h>
-#include<Windows.h>
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define WIN32_LEAN_AND_MEAN
+#include<windows.h>
+#include<WinSock2.h>
+#pragma comment(lib,"ws2_32.lib")
 #else
-#include<unistd.h>//uni std
-#include<arpa/iner.h>
+#include<unistd.h> //uni std
+#include<arpa/inet.h>
 #include<string.h>
+
 #define SOCKET int
 #define INVALID_SOCKET  (SOCKET)(~0)
 #define SOCKET_ERROR            (-1)
-#endif // _WIN32
-#include<thread>
-using namespace std;
-//引入WIndows本地的静态库
-#pragma comment(lib,"ws2_32.lib")
-#include"MessageHeader.hpp"
+#endif
+#include <iostream>
+#include "MessageHeader.hpp"
 
 class EasyTcpClient
 {
-	SOCKET _socket;
-
-
+	SOCKET _sock;
 public:
 	EasyTcpClient()
 	{
-		_socket = INVALID_SOCKET;
+		_sock = INVALID_SOCKET;
 	}
+
 	virtual ~EasyTcpClient()
 	{
-
+		Close();
 	}
-
-	///初始化socket
+	//初始化socket
 	void InitSocket()
 	{
-		//启动WINsocket环境
 #ifdef _WIN32
-//版本号,启动windows socket2.x环境
+		//启动Windows socket 2.x环境
 		WORD ver = MAKEWORD(2, 2);
 		WSADATA dat;
 		WSAStartup(ver, &dat);
-#endif // _WIN32
-
-		if (INVALID_SOCKET != _socket)
+#endif
+		if (INVALID_SOCKET != _sock)
 		{
-			close();
-			cout << "关闭旧的连接" << endl;
+			printf("<socket=%d>关闭旧连接...\n", _sock);
+			Close();
 		}
-		_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-		if (INVALID_SOCKET == _socket)
+		_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (INVALID_SOCKET == _sock)
 		{
-			cout << "Error:建立socket" << endl;
+			printf("错误，建立Socket失败...\n");
 		}
-		else
-		{
-			cout << "success:建立socket" << endl;
+		else {
+			printf("建立Socket成功...\n");
 		}
-
 	}
 
 	//连接服务器
-	int Connect(const char* ip,unsigned short port)
+	int Connect(const char* ip, unsigned short port)
 	{
-		if (INVALID_SOCKET == _socket)
+		if (INVALID_SOCKET == _sock)
 		{
 			InitSocket();
 		}
+		// 2 连接服务器 connect
 		sockaddr_in _sin = {};
 		_sin.sin_family = AF_INET;
 		_sin.sin_port = htons(port);
 #ifdef _WIN32
-		_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
-
+		_sin.sin_addr.S_un.S_addr = inet_addr(ip);
 #else
-		_sin.sin_addr.s_addr = inet_addr("192.168.0.161");
-#endif // _WIN32
-		int ret = connect(_socket, (sockaddr*)&_sin, sizeof(sockaddr_in));
-
+		_sin.sin_addr.s_addr = inet_addr(ip);
+#endif
+		int ret = connect(_sock, (sockaddr*)&_sin, sizeof(sockaddr_in));
 		if (SOCKET_ERROR == ret)
 		{
-			cout << "建立socket失败" << endl;
+			printf("错误，连接服务器失败...\n");
 		}
-		else
-		{
-			cout << "建立成功" << endl;
-
+		else {
+			printf("连接服务器成功...\n");
 		}
 		return ret;
 	}
 
-	//关闭服务器
-	void close()
+	//关闭套节字closesocket
+	void Close()
 	{
-		if (INVALID_SOCKET!= _socket)
+		if (_sock != INVALID_SOCKET)
 		{
-			//4、关闭socket连接
 #ifdef _WIN32
-
-			closesocket(_socket);
-#else
-			close(_socket);
-#endif // _WIN32
-
-
-#ifdef _WIN32
-			//5、清除windowssocket环境
+			closesocket(_sock);
+			//清除Windows socket环境
 			WSACleanup();
-#endif // _WIN32
-			_socket = INVALID_SOCKET;
+#else
+			close(_sock);
+#endif
+			_sock = INVALID_SOCKET;
 		}
-
 	}
-
-	
 
 	//处理网络消息
 	bool OnRun()
@@ -126,97 +106,94 @@ public:
 		{
 			fd_set fdReads;
 			FD_ZERO(&fdReads);
-			FD_SET(_socket, &fdReads, NULL);
+			FD_SET(_sock, &fdReads);
 			timeval t = { 0,0 };
-			int redt = select(_socket + 1, &fdReads, 0, 0, &t);
-			if (redt < 0)
+			int ret = select(_sock + 1, &fdReads, 0, 0, &t);
+			if (ret < 0)
 			{
-				cout << _socket << ":\tselect任务结束" << endl;
+				printf("<socket=%d>select任务结束1\n", _sock);
+				Close();
 				return false;
 			}
-
-			///如果有数据可读就进行处理
-			if (FD_ISSET(_socket, &fdReads))
+			if (FD_ISSET(_sock, &fdReads))
 			{
-				FD_CLR(_socket, &fdReads);
-				if (-1 == RecvData())
+				FD_CLR(_sock, &fdReads);
+
+				if (-1 == RecvData(_sock))
 				{
-					cout << _socket << ":\tSelect任务完成" << endl;
+					printf("<socket=%d>select任务结束2\n", _sock); 
+					Close();
 					return false;
 				}
 			}
+			return true;
 		}
+		return false;
 	}
-	//是否在运行中
+
+	//是否工作中
 	bool isRun()
 	{
-		return _socket != INVALID_SOCKET;
+		return _sock != INVALID_SOCKET;
 	}
 
-	//接收数据:处理粘包、拆分包
-	int RecvData()
+	//缓冲区
+	char szRecv[4096] = {};
+	//接收数据 处理粘包 拆分包
+	int RecvData(SOCKET _cSock)
 	{
-		//设置一个缓冲来接收数据
-		char szRecv[4096] = {};
-		//5、接收客户端数据
+		// 5 接收客户端数据
+		int nLen = (int)recv(_cSock, szRecv, 4096, 0);
 		DataHeader* header = (DataHeader*)szRecv;
-		int n_Len = (int)recv(_socket, (char*)&szRecv, sizeof(DataHeader), 0);
-		if (n_Len <= 0)
+		if (nLen <= 0)
 		{
-			cout << "与服务器断开连接，任务结束" << endl;
+			printf("与服务器断开连接，任务结束。\n");
 			return -1;
 		}
-		recv(_socket, szRecv + sizeof(header), header->dataLength - sizeof(header), 0);
-		OnNetMsg( header);
+		//recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
 
+		OnNetMsg(header);
 		return 0;
 	}
 
 	//响应网络消息
-	void OnNetMsg( DataHeader* header )
+	virtual void OnNetMsg(DataHeader* header)
 	{
 		switch (header->cmd)
 		{
 		case CND_LOGIN_RESULT:
 		{
+
 			LoginResult* login = (LoginResult*)header;
-			cout << "收到服务端消息" << _socket << "的请求\t";
-			cout << " 指令CND_LOGIN_RESULT：\t" << login->cmd << "命令长度:\t" << login->dataLength << endl;
+			printf("收到服务端消息：CMD_LOGIN_RESULT,数据长度：%d\n", login->dataLength);
 		}
 		break;
 		case CND_LOGINOUT_RESULT:
 		{
-			LoginoutResult* login = (LoginoutResult*)header;
-
-			cout << "收到服务端消息" << _socket << "的请求\t";
-			cout << " 指令CND_LOGINOUT_RESULT：\t" << login->cmd << "命令长度:\t" << login->dataLength << endl;
+			LoginoutResult* logout = (LoginoutResult*)header;
+			printf("收到服务端消息：CMD_LOGOUT_RESULT,数据长度：%d\n", logout->dataLength);
 		}
 		break;
-		case CMD_NEW_USER_JOIN://新用户加入的消息
+		case CMD_NEW_USER_JOIN:
 		{
-			NEWUSERJOIN* login = (NEWUSERJOIN*)header;
-
-			cout << "收到服务端消息" << _socket << "的请求\t";
-			cout << " 指令CMD_NEW_USER_JOIN：\t" << login->cmd << "命令长度:\t" << login->dataLength << endl;
+			NEWUSERJOIN* userJoin = (NEWUSERJOIN*)header;
+			printf("收到服务端消息：CMD_NEW_USER_JOIN,数据长度：%d\n", userJoin->dataLength);
 		}
 		break;
 		}
 	}
 
+	//发送数据
 	int SendData(DataHeader* header)
 	{
-		if (&header&&isRun())
+		if (isRun() && header)
 		{
-		 	return send(_socket, (const char*)header, header->dataLength, 0);
-
+			return send(_sock, (const char*)header, header->dataLength, 0);
 		}
+		return SOCKET_ERROR;
 	}
-
 private:
 
 };
 
-
-
-
-#endif // !_EASYTCPCLIENT_HPP_
+#endif

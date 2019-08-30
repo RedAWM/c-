@@ -1,4 +1,6 @@
+#define  _CRT_SECURE_NO_WARNINGS
 #include"EasyTcpClient.hpp"
+#include<thread>
 using namespace std;
 
 
@@ -63,7 +65,7 @@ void CmdThread(EasyTcpClient* _client)
 		cin >> cmdBuffer;
 		if (0 == strcmp(cmdBuffer, "exit"))
 		{
-			_client->close();
+			_client->Close();
 			cout << "ÍË³ö" << endl;
 			return;
 		}
@@ -104,12 +106,11 @@ int main()
 
 	while (client.isRun())
 	{
-		client.isRun();
-
+		client.OnRun();
 	}
 
 
-	client.close();
+	client.Close();
 
 
 
