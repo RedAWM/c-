@@ -1,61 +1,47 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
-//#include <iostream>
+#define _CRT_SECURE_NO_WARNINGS
+#include "EasyTcpServer.hpp"
+#include<thread>
 
-
-#include<vector>
-//using namespace std;
-#include"EasyTcpServer.hpp"
-
-
-
-
-
-
+bool g_bRun = true;
+void cmdThread()
+{
+	while (true)
+	{
+		char cmdBuf[256] = {};
+		scanf("%s", cmdBuf);
+		if (0 == strcmp(cmdBuf, "exit"))
+		{
+			g_bRun = false;
+			printf("退出cmdThread线程\n");
+			break;
+		}
+		else {
+			printf("不支持的命令。\n");
+		}
+	}
+}
 
 int main()
 {
-	EasyTcpServer server ;
+
+	EasyTcpServer server;
 	server.InitSocket();
 	server.Bind(nullptr, 4567);
 	server.Listen(5);
-	while (server.isRun())
+	server.Start();
+
+	//启动UI线程
+	std::thread t1(cmdThread);
+	t1.detach();
+
+	while (g_bRun)
 	{
 		server.OnRun();
+		//printf("空闲时间处理其它业务..\n");
 	}
 	server.Close();
-	printf_s("服务端已经退出");
-
-
-
-
-#pragma region MyRegion
-	//伯克利socket
-//select,第一个参数在windows中并无实际意义，在Linux\Mac中需要注意，最大描述符交易
-//int
-//	WSAAPI
-//	select(
-//		_In_ int nfds,//是一个整数值是指fd_set集合中所有描述符（socket)的范围,而不是数量，既是所有文件描述符最大值+1,在Windows这个参数可以写0
-//		_Inout_opt_ fd_set FAR * readfds,//可读集合
-//		_Inout_opt_ fd_set FAR * writefds,//可写集合
-//		_Inout_opt_ fd_set FAR * exceptfds,//异常集合
-//		_In_opt_ const struct timeval FAR * timeout//延时
-//	);
-//从可读集合中进行查找
-//TODO:判断客户端接收长度是否,拆包处理
-//cout << "空闲时间处理其他事情" << endl;  
-#pragma endregion
-
-		
-
-
-
-	//6、关闭清理套接字
-
-
-
+	printf("已退出。\n");
 	getchar();
-
 	return 0;
-
 }
-
