@@ -23,7 +23,7 @@ void cmdThread()
 }
 
 //客户端数量
-const int cCount = 100;
+const int cCount = 50;
 //发送线程数量
 const int tCount = 4;
 //客户端数组

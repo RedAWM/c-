@@ -20,6 +20,7 @@ public:
 	void    update()
 	{
 		//QueryPerformanceCounter(&_startCount);
+		//注意：std::chrono::high_resolution_clock返回的时间点是按秒为单位的。
 		_begin = high_resolution_clock::now();
 	}
 	/**
